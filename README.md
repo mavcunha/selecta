@@ -41,7 +41,7 @@ it's also an interactive program (it accepts user keystrokes and draws a UI).
 It directly opens `/dev/tty` to do the latter.
 
 With that exception aside, Selecta is a normal, well-behaved Unix tool. If a
-selection is made, its path will be written to stdout with a single trailing
+selection is made, the line will be written to stdout with a single trailing
 newline. If no selection is made (meaning the user killed Selecta with ^C), it
 will write nothing to stdout and exit with status code 1.
 
@@ -57,7 +57,10 @@ The ranking algorithm is:
 
 - Select each input string that contains all of the characters in the query.
   They must be in order, but don't have to be sequential. Case is ignored.
-- Shorter matching substrings rank higher.
+- The score is the length of the matching substring. Lower is better.
+- If a character is on a word boundary, it only contributes 1 to the length, rather than the actual number of characters since the previous matching character. Querying "app/models" for "am" gives a score of 2, not 5.
+- Bonus for exact queries: when several adjacent characters match sequentially, only the first two score. Querying "search_spec.rb" for "spec" gives a score of 2, not 4.
+- Bonus for acronyms: when several sequential query characters exist on word boundaries, only the first two score. Querying "app/models/user.rb" for "amu" gives a score of 2, not 3.
 
 Some concrete examples:
 - "ct" will match "cat" and "Crate", but not "tack".
@@ -95,7 +98,7 @@ Vims like MacVim.
 " command. See usage below.
 function! SelectaCommand(choice_command, selecta_args, vim_command)
   try
-    silent let selection = system(a:choice_command . " | selecta " . a:selecta_args)
+    let selection = system(a:choice_command . " | selecta " . a:selecta_args)
   catch /Vim:Interrupt/
     " Swallow the ^C so that the redraw below happens; otherwise there will be
     " leftovers from selecta on the screen
@@ -109,6 +112,19 @@ endfunction
 " Find all files in all non-dot directories starting in the working directory.
 " Fuzzy select one of those. Open the selected file with :e.
 nnoremap <leader>f :call SelectaCommand("find * -type f", "", ":e")<cr>
+```
+
+You can also use selecta to open buffers. Just add the following to your .vimrc, as well as the `SelectaCommand` function above:
+
+```vimscript
+function! SelectaBuffer()
+  let bufnrs = filter(range(1, bufnr("$")), 'buflisted(v:val)')
+  let buffers = map(bufnrs, 'bufname(v:val)')
+  call SelectaCommand('echo "' . join(buffers, "\n") . '"', "", ":b")
+endfunction
+
+" Fuzzy select a buffer. Open the selected buffer with :b.
+nnoremap <leader>b :call SelectaBuffer()<cr>
 ```
 
 ## Usage Examples
